@@ -1,7 +1,5 @@
 import random
-from math import exp
-
-import sys
+from math import exp, sin, pi
 from pip._vendor.distlib.compat import raw_input #Keyboard input
 
 numNeurons =[]
@@ -10,20 +8,24 @@ patterns=[]
 
 
 class SeedNeuron(object):
-    def __init__(self, id, inputs, neuronCurrentPattern):
+    def __init__(self, id, inputs, neuronCurrentPattern, neuronCurrentInput):
         self.id = id
         self.inputs= inputs
-        self.answer = self.inputs[neuronCurrentPattern]
+        self.answer = patterns[neuronCurrentPattern][neuronCurrentInput]
+
+    def updateAnswer(self,currentPattern, currentInput):
+        self.answer = patterns[currentPattern][currentInput]
+
 
 class Neuron(object):
     def __init__(self, id):
         super().__init__()
         self.id = id
-        self.learningRate = 0.1
+        self.learningRate = 0.5
         self.inputNeurons = {} #Neurons that provides the inputs , It is a dictionary of the form {Neuron,weight}
         self.outputNeurons = [] #Neurons that I provide the input (they receive my output)
         #self.weights = []
-        self.answer = 0
+        self.answer = 1
         self.error = 0
 
     def addInputNeuron(self, targetNeuron):
@@ -38,18 +40,22 @@ class Neuron(object):
     def calculateSin(self):
         tmp = 0
         for neuron in self.inputNeurons:
-            tmp += neuron.answer * self.inputNeurons[neuron]
-        self.answer = 2 / (1 + exp(-tmp)) - 1
+            tmp1 =self.inputNeurons[neuron]
+            tmp2=neuron.answer
+            tmp += tmp1*tmp2
+        # self.answer = 2 / (1 + exp(-tmp)) - 1
+        self.answer = 1 / (1 + exp(-tmp))
 
     def getError(self, desiredAnswer):
         if self.outputNeurons: #Hidden neuron
             tmp =0
             for outNeuron in self.outputNeurons:
                 tmp += outNeuron.error * outNeuron.inputNeurons[self]
-            self.error = tmp *  (1 - (self.answer * self.answer)) / 2
-
+                self.error = tmp *  (1 - (self.answer * self.answer)) / 2
+                # self.error = tmp *  (self.answer *(1- self.answer)) / 2
         else: #Output neuron
             self.error = (desiredAnswer- self.answer) * (1 - (self.answer * self.answer)) / 2
+            # self.error = (desiredAnswer- self.answer) * (self.answer *(1- self.answer)) / 2
         return self.error
 
     def adjustWeights(self):
@@ -72,7 +78,7 @@ class NeuralNetwork(object):
             layer = []
             for i in range(numNeurons[noLayer]):  # Num of new neurons in that layer
                 if(noLayer==0):
-                    newNeuron = SeedNeuron(str(noLayer)+"."+str(i), patterns[i], self.currentPattern)
+                    newNeuron = SeedNeuron(str(noLayer)+"."+str(i), patterns[i], self.currentPattern, self.currentInput)
                 else:
                     newNeuron = Neuron(str(noLayer)+"."+str(i))
                 layer.append(newNeuron)
@@ -116,6 +122,10 @@ class NeuralNetwork(object):
                 if type(neuron) is not SeedNeuron:
                     neuron.adjustWeights()
 
+    def updateInputs(self):
+        for neuron in self.neuralNetwork[0]:
+            neuron.updateAnswer(self.currentPattern,self.currentInput)
+
     def printStadistics(self):
         for layer in self.neuralNetwork:
             for neuron in layer:
@@ -142,31 +152,15 @@ class NeuralNetwork(object):
             noLayer+=1
 
 
-def readFile():
-    with open(sys.argv[1], "r") as inputFile:
-        line = inputFile.readline()
-        constants = line.split()
-        numPatterns = int(constants[0])             #Number of patterns
-        numInputs = int(constants[1])               #Number of inputs per pattern
-
-        line = inputFile.readline()
-        numNeurons = [int(i) for i in line.split()]              #Array with the number of neurons per layer
-
-        line = inputFile.readline()
-        desiredAnswers = [float(i) for i in line.split()]        #Array with the desired answers for each pattern
-
-        for i in range (numPatterns):
-            line = inputFile.readline()
-            inputs =[float(i) for i in line.split()]
-            patterns.append(inputs)
-
 if __name__ == '__main__':
 
     numNeurons = [1, 1, 3, 1]
-    patterns = [[0.0, 90.0, 180.0, 360.0]]
-    desiredAnswers = [0, 1, 0, -1]
+    patterns = [[]]
+    for i in range (0, 14, 1):
+        patterns[0].append(i)
+        desiredAnswers.append(sin(i))
 
-    #readFile()
+
     neuralNetwork = NeuralNetwork(numNeurons, patterns, desiredAnswers)
 
     iteration = 0
@@ -174,6 +168,7 @@ if __name__ == '__main__':
         print("------Iteration ", iteration, "------")
         print("------Value: ", patterns[neuralNetwork.currentPattern][neuralNetwork.currentInput],"------")
 
+        neuralNetwork.updateInputs()
         neuralNetwork.forwardPropagation()                          # Forward propagation of the inputs
         neuralNetwork.backwardPropagation()                         # Backward propagation of the error
         neuralNetwork.printStadistics()
